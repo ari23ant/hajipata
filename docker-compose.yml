@@ -1,0 +1,25 @@
+version: '3.3'
+
+services:
+    analysis:
+        build: .
+
+        volumes:
+            - type: bind
+              source: ./src
+              target: /root/src
+
+            - type: bind
+              source: ./data
+              target: /root/data
+
+            - type: bind
+              source: ./img
+              target: /root/img
+
+        environment:
+            - DISPLAY=${DISPLAY}
+
+        privileged: true
+
+        tty: true
