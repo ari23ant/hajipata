@@ -4,32 +4,30 @@ using DataFrames
 using Statistics
 using LinearAlgebra
 
-iris = dataset("datasets", "iris")
-#println(names(iris))  # 列見出しを確認
-#println(levels(iris.Species))  # アヤメの種類を確認
-
 data = Dict{String, Any}()
-data["iris"] = iris
-data["setosa"] = iris[iris.Species .== "setosa", :]
-data["versicolor"] = iris[iris.Species .== "versicolor", :]
-data["virginica"] = iris[iris.Species .== "virginica", :]
+data["iris"] = dataset("datasets", "iris")
+data["setosa"] = data["iris"][data["iris"].Species .== "setosa", :]
+data["versicolor"] = data["iris"][data["iris"].Species .== "versicolor", :]
+data["virginica"] = data["iris"][data["iris"].Species .== "virginica", :]
 
-function process(data::Dict)
+rslt = Dict{String, Any}()
+
+function process(data::Dict{String, Any}, rslt::Dict{String, Any})
     println("Main process")
 
     # 花弁の長さ-幅を描画
-    #plot_petallength_petalwidth(data["setosa"], data["versicolor"], data["virginica"], "PetalLength", "PetalWidth")
     plot_petallength_petalwidth(data["setosa"], data["versicolor"], data["virginica"], "PetalLength", "PetalWidth", [0.8, 7.2], [-1.5, 4.0])
 
+    # --- 実行例4.1を復習｜ライブラリ使用
     # 平均
     avg_irispl = mean(data["iris"][!, "PetalLength"])
     avg_irispw = mean(data["iris"][!, "PetalWidth"])
-    myprint(avg_irispl, avg_irispw)
+    myprint("Mean is", [avg_irispl avg_irispw])
 
     # 分散｜N-1不偏分散
     var_irispl = var(data["iris"][!, "PetalLength"], corrected=true)
     var_irispw = var(data["iris"][!, "PetalWidth"], corrected=true)
-    myprint(var_irispl, var_irispw)
+    myprint("Variances are", var_irispl, var_irispw)
 
     # 共分散｜N-1不偏分散
     var_irisplpw = cov(data["iris"][!, "PetalLength"], data["iris"][!, "PetalWidth"], corrected=true)
@@ -38,30 +36,57 @@ function process(data::Dict)
     covmatrix = [var_irispl var_irisplpw;
                  var_irisplpw var_irispw]
 
+    rslt["μ"] = [avg_irispl avg_irispw]
+    rslt["Σ"] = covmatrix
+
     # 計算結果を確認
-    myprint([avg_irispl avg_irispw], covmatrix)
+    myprint("μ is", [avg_irispl avg_irispw], "Σ is", covmatrix)
 
-    myprint(eigvals(covmatrix, sortby=x->-x))
+    # 固有値と固有ベクトル（正規直交行列）を計算｜eigvalsとeigvecsでもOK
+    eigenvalue, eigenvector = eigen(covmatrix)
+    #eigenvalue, eigenvector = eigen(covmatrix, sortby=x->-x)
+    myprint("λ is", eigenvalue, "S is", eigenvector)
 
-    """
-    # 標準化
-    vec_std_irispl = standardize(data["iris"][!, "PetalLength"])
-    vec_std_irispw = standardize(data["iris"][!, "PetalWidth"])
+    rslt["S"] = eigenvector
+
+    # 計算の確認｜固有値が出るかどうか
+    myprint(inv(eigenvector) * covmatrix * eigenvector)
+
+    # 無相関化
+    x = Matrix(data["iris"][!, ["PetalLength", "PetalWidth"]])
+    #y = x * eigenvector
+    y = decorrelate(x)  # 関数としてまとめた
+    vec_decor_irispl = y[:, 1]
+    vec_decor_irispw = y[:, 2]
 
     # 計算結果を格納
-    std_iris = data["iris"][!, ["PetalLength", "PetalWidth", "Species"]]
-    std_iris[!, "PetalLength"] = vec_std_irispl
-    std_iris[!, "PetalWidth"] = vec_std_irispw
-    data["std_iris"] = std_iris
+    decor_iris = data["iris"][!, ["PetalLength", "PetalWidth", "Species"]]
+    decor_iris[!, "PetalLength"] = vec_decor_irispl
+    decor_iris[!, "PetalWidth"] = vec_decor_irispw
+    rslt["iris"] = decor_iris
 
-    # 花弁の長さ-幅を描画｜標準化
-    plot_petallength_petalwidth(data["std_iris"][data["std_iris"].Species .== "setosa", :],
-                                data["std_iris"][data["std_iris"].Species .== "versicolor", :],
-                                data["std_iris"][data["std_iris"].Species .== "virginica", :],
-                                "PetalLength", "PetalWidth")
-    """
+    # 花弁の長さ-幅を描画｜無相関化
+    plot_petallength_petalwidth(rslt["iris"][rslt["iris"].Species .== "setosa", :],
+                                rslt["iris"][rslt["iris"].Species .== "versicolor", :],
+                                rslt["iris"][rslt["iris"].Species .== "virginica", :],
+                                "PetalLength", "PetalWidth", [-2.2, 3.2])
 
     println("Done")
+end
+
+function decorrelate(mat::Matrix)::Matrix
+    # 分散共分散行列
+    Σ = cov(mat)
+
+    # 固有値と固有ベクトル（正規直交行列）
+    λ, S = eigen(Σ)
+    myprint("Eigen values λ is", λ, "Eigen vectors S is", S)
+    myprint("Diagonal elements are", inv(S) * Σ * S)
+
+    # 線形変換
+    ret = mat * S
+
+    return ret
 end
 
 function plot_petallength_petalwidth(setosa::DataFrame, versicolor::DataFrame, virginica::DataFrame, xlabel::String, ylabel::String, xlim::Any=nothing, ylim::Any=nothing)::Figure
@@ -82,13 +107,15 @@ end
 # ref: https://discourse.julialang.org/t/how-to-get-a-function-to-print-stuff-with-repl-like-formatting/45877
 function myprint(param...)
     for p in param
-        show(stdout, "text/plain", p)
-        println()  # 改行
+        myshow(p)
     end
 end
+myshow(arg::String) = println(arg)
+myshow(arg) = (show(stdout, "text/plain", arg); println())
 
 # ***** Main process *****
-process(data)
+#process(data)
+process(data, rslt)
 
 #if abspath(PROGRAM_FILE) == @__FILE__
 #    process(data)
