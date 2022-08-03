@@ -15,7 +15,7 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     println("Main process")
 
     # Glu-BMIで描画
-    plotGluBMI(data[:pimatr], title="Pima training")
+    #plotGluBMI(data[:pimatr], title="Pima training")
 
     # YesとNoでGluとBMIを抜き出す
     tgtpos = Matrix(data[:pos][!, [:Glu, :BMI]])
@@ -41,48 +41,75 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
 
     rslt[:Ppos], rslt[:Pneg] = Ppos, Pneg
 
+    # --- 2次識別関数 QDF: Quadratic Discriminant Function
     # 2次識別関数のパラメタ計算
-    # QDF: Quadratic Discriminant Function
     QDF_S = inv(Sigmapos) - inv(Sigmaneg)
-    QDF_cT = muneg' * inv(Sigmaneg) - mupos' * inv(Sigmapos)  # 転置した状態で計算
+    QDF_c = (muneg' * inv(Sigmaneg) - mupos' * inv(Sigmapos))'
     QDF_F = mupos' * inv(Sigmapos) * mupos - muneg' * inv(Sigmaneg) * muneg
             + log(det(Sigmapos) / det(Sigmaneg)) - 2 * log(Ppos / Pneg)
 
-    rslt[:QDF_S], rslt[:QDF_ct], rslt[:QDF_F] = QDF_S, QDF_cT, QDF_F
-    myprint(QDF_S, QDF_cT, QDF_F)
+    rslt[:QDF_S], rslt[:QDF_c], rslt[:QDF_F] = QDF_S, QDF_c, QDF_F
 
     # 2次識別関数の境界線計算
     numx, numy = 200, 100
     gridx = range(minimum(data[:pimatr].Glu), maximum(data[:pimatr].Glu), numx)
     gridy = range(minimum(data[:pimatr].BMI), maximum(data[:pimatr].BMI), numy)
 
-    QDF_z = qdfmesh(gridx, gridy, QDF_S, QDF_cT, QDF_F, 0)
+    QDF_z = qdfmesh(gridx, gridy, QDF_S, QDF_c, QDF_F, 0.)
     rslt[:QDF_z] = QDF_z
 
     # 2次識別関数の境界線プロット
     contourGluBMI(data[:pimatr], (gridx, gridy, reshape(QDF_z, numy, numx)))
 
+    # --- 線形識別関数 LDF: Liner Discriminant Function
+    # 共通の分散共分散行列
+    Sigmapool = Ppos * Sigmapos + Pneg * Sigmaneg
+
+    rslt[:Sigmapool] = Sigmapool
+
+    # 線形識別関数のパラメタ計算
+    #LDF_S = inv(Sigmapool) - inv(Sigmapool)  # zeros(2, 2)と等価
+    LDF_S = zeros(2, 2)
+    LDF_c = (muneg' * inv(Sigmapool) - mupos' * inv(Sigmapool))'
+    #LDF_F = mupos' * inv(Sigmapool) * mupos - muneg' * inv(Sigmapool) * muneg
+    #        + log(det(Sigmapool) / det(Sigmapool)) - 2 * log(Ppos / Pneg)  # log(det(Sigmapool) / det(Sigmapool)) = 0.0
+    LDF_F = mupos' * inv(Sigmapool) * mupos - muneg' * inv(Sigmapool) * muneg
+            - 2 * log(Ppos / Pneg)
+
+    rslt[:LDF_S], rslt[:LDF_c], rslt[:LDF_F] = LDF_S, LDF_c, LDF_F
+
+    # 線形識別関数の境界線計算
+    #numx, numy = 200, 100
+    #gridx = range(minimum(data[:pimatr].Glu), maximum(data[:pimatr].Glu), numx)
+    #gridy = range(minimum(data[:pimatr].BMI), maximum(data[:pimatr].BMI), numy)
+
+    LDF_z = qdfmesh(gridx, gridy, LDF_S, LDF_c, LDF_F, 0.)
+    rslt[:LDF_z] = LDF_z
+
+    # 線形識別関数の境界線プロット
+    contourGluBMI(data[:pimatr], (gridx, gridy, reshape(LDF_z, numy, numx)))
+
     println("Done")
 end
 
-function qdfmesh(xgrid, ygrid, S, cT, F, thres)
-    numx, numy = length(xgrid), length(ygrid)
-    x = vec(xgrid' .* ones(numy))
-    y = vec(ones(numx)' .* ygrid)
+function qdfmesh(gridx::StepRangeLen, gridy::StepRangeLen, S::Matrix{Float64}, c::Vector{Float64}, F::Float64, thres::Float64)
+    numx, numy = length(gridx), length(gridy)
+    x = vec(gridx' .* ones(numy))
+    y = vec(ones(numx)' .* gridy)
 
     numz = numx * numy
     z = zeros(numz)
 
     for i in 1:numz
-        z[i] = qdf(x[i], y[i], S, cT, F, thres)
+        z[i] = qdf(x[i], y[i], S, c, F, thres)
     end
 
     return z
 end
 
-function qdf(x, y, S, cT, F, thres)
+function qdf(x::Float64, y::Float64, S::Matrix{Float64}, c::Vector{Float64}, F::Float64, thres::Float64)
     X = [x, y]
-    Y = X' * S * X + 2 * cT * X + F
+    Y = X' * S * X + 2 * c' * X + F
     Y = Y > thres ? 1. : 0.
     return Y
 end
