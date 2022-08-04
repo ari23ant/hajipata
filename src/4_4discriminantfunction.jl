@@ -8,6 +8,7 @@ data = Dict{Symbol, Any}()
 data[:pimatr] = dataset("MASS", "Pima.tr")
 data[:pos] = data[:pimatr][data[:pimatr].Type .== "Yes", :]
 data[:neg] = data[:pimatr][data[:pimatr].Type .== "No", :]
+data[:pimate] = dataset("MASS", "Pima.te")
 
 rslt = Dict{Symbol, Any}()
 
@@ -45,21 +46,22 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     # 2次識別関数のパラメタ計算
     QDF_S = inv(Sigmapos) - inv(Sigmaneg)
     QDF_c = (muneg' * inv(Sigmaneg) - mupos' * inv(Sigmapos))'
-    QDF_F = mupos' * inv(Sigmapos) * mupos - muneg' * inv(Sigmaneg) * muneg
-            + log(det(Sigmapos) / det(Sigmaneg)) - 2 * log(Ppos / Pneg)
+    QDF_F = (mupos' * inv(Sigmapos) * mupos - muneg' * inv(Sigmaneg) * muneg
+             + log(det(Sigmapos) / det(Sigmaneg)) - 2 * log(Ppos / Pneg))
 
     rslt[:QDF_S], rslt[:QDF_c], rslt[:QDF_F] = QDF_S, QDF_c, QDF_F
 
     # 2次識別関数の境界線計算
-    numx, numy = 200, 100
+    numx, numy = 200, 100  # 刻み数
     gridx = range(minimum(data[:pimatr].Glu), maximum(data[:pimatr].Glu), numx)
     gridy = range(minimum(data[:pimatr].BMI), maximum(data[:pimatr].BMI), numy)
 
     QDF_z = qdfmesh(gridx, gridy, QDF_S, QDF_c, QDF_F, 0.)
+
     rslt[:QDF_z] = QDF_z
 
     # 2次識別関数の境界線プロット
-    contourGluBMI(data[:pimatr], (gridx, gridy, reshape(QDF_z, numy, numx)))
+    #contourGluBMI(data[:pimatr], (gridx, gridy, reshape(QDF_z, numy, numx)), title="Quadratic discriminant function")
 
     # --- 線形識別関数 LDF: Liner Discriminant Function
     # 共通の分散共分散行列
@@ -68,26 +70,31 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     rslt[:Sigmapool] = Sigmapool
 
     # 線形識別関数のパラメタ計算
-    #LDF_S = inv(Sigmapool) - inv(Sigmapool)  # zeros(2, 2)と等価
-    LDF_S = zeros(2, 2)
+    LDF_S = inv(Sigmapool) - inv(Sigmapool)  # zeros(2, 2)と等価
     LDF_c = (muneg' * inv(Sigmapool) - mupos' * inv(Sigmapool))'
-    #LDF_F = mupos' * inv(Sigmapool) * mupos - muneg' * inv(Sigmapool) * muneg
-    #        + log(det(Sigmapool) / det(Sigmapool)) - 2 * log(Ppos / Pneg)  # log(det(Sigmapool) / det(Sigmapool)) = 0.0
-    LDF_F = mupos' * inv(Sigmapool) * mupos - muneg' * inv(Sigmapool) * muneg
-            - 2 * log(Ppos / Pneg)
+    LDF_F = (mupos' * inv(Sigmapool) * mupos - muneg' * inv(Sigmapool) * muneg
+             + log(det(Sigmapool) / det(Sigmapool)) - 2 * log(Ppos / Pneg))  # log(det(Sigmapool) / det(Sigmapool)) = 0.0
 
     rslt[:LDF_S], rslt[:LDF_c], rslt[:LDF_F] = LDF_S, LDF_c, LDF_F
 
-    # 線形識別関数の境界線計算
-    #numx, numy = 200, 100
-    #gridx = range(minimum(data[:pimatr].Glu), maximum(data[:pimatr].Glu), numx)
-    #gridy = range(minimum(data[:pimatr].BMI), maximum(data[:pimatr].BMI), numy)
+    # 線形識別関数の境界線計算｜2次識別関数と条件を揃える
+    LDF_z = qdfmesh(gridx, gridy, LDF_S, LDF_c, LDF_F, 0.)  # qdfmeshを使い回す
 
-    LDF_z = qdfmesh(gridx, gridy, LDF_S, LDF_c, LDF_F, 0.)
     rslt[:LDF_z] = LDF_z
 
     # 線形識別関数の境界線プロット
-    contourGluBMI(data[:pimatr], (gridx, gridy, reshape(LDF_z, numy, numx)))
+    #contourGluBMI(data[:pimatr], (gridx, gridy, reshape(LDF_z, numy, numx)), title="Liner discriminant function")
+
+    # --- 再代入誤り率
+    #qda = qdf(tgtpos, QDF_S, QDF_c, QDF_F, 0.)
+    #myprint(qda)
+    #qda = qdf(Matrix(data[:pimatr][!, [:Glu, :BMI]]), QDF_S, QDF_c, QDF_F, 0.)
+    #rslt[:aa] = qda
+    #a = qda .== 1.0 ? "Yes" : "No"
+    #myprint(qda)
+    #myprint(a)
+
+
 
     println("Done")
 end
@@ -111,6 +118,28 @@ function qdf(x::Float64, y::Float64, S::Matrix{Float64}, c::Vector{Float64}, F::
     X = [x, y]
     Y = X' * S * X + 2 * c' * X + F
     Y = Y > thres ? 1. : 0.
+    return Y
+end
+
+function qdf(X::Matrix{Float64}, S::Matrix{Float64}, c::Vector{Float64}, F::Float64, thres::Float64)
+    num = length(X[:, 1])
+    Y = Vector{Float64}(undef, num)
+
+    for i in 1:num
+        Y[i] = qdf(X[i, 1], X[i, 2], S, c, F, thres)
+    end
+
+    return Y
+end
+
+function qdferror(X::DataFrame, S::Matrix{Float64}, c::Vector{Float64}, F::Float64, thres::Float64)
+    num = length(X[:, 1])
+    Y = Vector{Float64}(undef, num)
+
+    for i in 1:num
+        Y[i] = qdf(X[i, 1], X[i, 2], S, c, F, thres)
+    end
+
     return Y
 end
 
