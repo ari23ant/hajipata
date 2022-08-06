@@ -99,10 +99,59 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     myprint("LDF test error[%]", ldfteerr*100)
 
     # --- ROC曲線
+    # 閾値の下限値、上限値、刻み数
+    llthres, ulthres, numstep = -9, 7, 161
+    qdf_fpn_tpp = calcfpntpp(data[:pimate][!, [:Glu, :BMI, :Type]], QDF_S, QDF_c, QDF_F, range(llthres, ulthres, numstep))
+    ldf_fpn_tpp = calcfpntpp(data[:pimate][!, [:Glu, :BMI, :Type]], LDF_S, LDF_c, LDF_F, range(llthres, ulthres, numstep))
 
-
+    # ROC曲線描画
+    ploROC(qdf_fpn_tpp, ldf_fpn_tpp)
 
     println("Done")
+end
+
+function ploROC(qdf_fpn_tpp::Matrix{Float64}, ldf_fpn_tpp::Matrix{Float64})
+    fig, ax = subplots()
+    fig.suptitle("ROC curve")
+    ax.plot(qdf_fpn_tpp[:, 1], qdf_fpn_tpp[:, 2], label="QDF")
+    ax.plot(ldf_fpn_tpp[:, 1], ldf_fpn_tpp[:, 2], label="LDF")
+    ax.set_xlabel("False positive rate")
+    ax.set_ylabel("Ture positive rate")
+    grid(b=true)
+    legend()
+end
+
+function calcfpntpp(X::DataFrame, S::Matrix{Float64}, c::Vector{Float64}, F::Float64, thresholds::StepRangeLen)
+    num = length(X[:, 1])
+    numstep = length(thresholds)
+
+    fpn_tpp = Matrix{Float64}(undef, numstep, 2)
+
+    # 発症していないをPositive, 発症したをNegativeとする
+    N = sum(X.Type .== "Yes")
+    P = sum(X.Type .== "No")
+
+    for (j, thres) in enumerate(thresholds)
+        fp, tp = 0, 0
+        for i in 1:num
+            z = qdf(Float64(X[i, 1]), Float64(X[i, 2]), S, c, F, thres)
+
+            # YesがNeg, 0.0がPos
+            if X[i, 3] == "Yes" && z == 0.0
+                fp += 1
+            end
+
+            # NoがPos, 0.0がPos
+            if X[i, 3] == "No" && z == 0.0
+                tp += 1
+            end
+       end
+
+       fpn_tpp[j, 1] = fp / N  # 偽陽性率
+       fpn_tpp[j, 2] = tp / P  # 真陽性率
+    end
+
+    return fpn_tpp
 end
 
 function qdfmesh(gridx::StepRangeLen, gridy::StepRangeLen, S::Matrix{Float64}, c::Vector{Float64}, F::Float64, thres::Float64)
