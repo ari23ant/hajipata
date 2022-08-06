@@ -85,14 +85,20 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     # 線形識別関数の境界線プロット
     #contourGluBMI(data[:pimatr], (gridx, gridy, reshape(LDF_z, numy, numx)), title="Liner discriminant function")
 
-    # --- 再代入誤り率
-    #qda = qdf(tgtpos, QDF_S, QDF_c, QDF_F, 0.)
-    #myprint(qda)
-    #qda = qdf(Matrix(data[:pimatr][!, [:Glu, :BMI]]), QDF_S, QDF_c, QDF_F, 0.)
-    #rslt[:aa] = qda
-    #a = qda .== 1.0 ? "Yes" : "No"
-    #myprint(qda)
-    #myprint(a)
+    # --- 誤り率
+    qdftrerr = qdferror(data[:pimatr][!, [:Glu, :BMI, :Type]], QDF_S, QDF_c, QDF_F, 0.)
+    myprint("QDF training error[%]", qdftrerr*100)
+
+    ldftrerr = qdferror(data[:pimatr][!, [:Glu, :BMI, :Type]], LDF_S, LDF_c, LDF_F, 0.)
+    myprint("LDF training error[%]", ldftrerr*100)
+
+    qdfteerr = qdferror(data[:pimate][!, [:Glu, :BMI, :Type]], QDF_S, QDF_c, QDF_F, 0.)
+    myprint("QDF test error[%]", qdfteerr*100)
+
+    ldfteerr = qdferror(data[:pimate][!, [:Glu, :BMI, :Type]], LDF_S, LDF_c, LDF_F, 0.)
+    myprint("LDF test error[%]", ldfteerr*100)
+
+    # --- ROC曲線
 
 
 
@@ -117,7 +123,7 @@ end
 function qdf(x::Float64, y::Float64, S::Matrix{Float64}, c::Vector{Float64}, F::Float64, thres::Float64)
     X = [x, y]
     Y = X' * S * X + 2 * c' * X + F
-    Y = Y > thres ? 1. : 0.
+    Y = Y < thres ? 1. : 0.
     return Y
 end
 
@@ -134,13 +140,21 @@ end
 
 function qdferror(X::DataFrame, S::Matrix{Float64}, c::Vector{Float64}, F::Float64, thres::Float64)
     num = length(X[:, 1])
-    Y = Vector{Float64}(undef, num)
+    #Y = Vector{Float64}(undef, num)
+    numerror = 0
 
     for i in 1:num
-        Y[i] = qdf(X[i, 1], X[i, 2], S, c, F, thres)
+        z = qdf(Float64(X[i, 1]), Float64(X[i, 2]), S, c, F, thres)
+
+        if z == 1.0 && X[i, 3] == "No"
+            numerror += 1
+        elseif z == 0.0 && X[i, 3] == "Yes"
+            numerror += 1
+        end
     end
 
-    return Y
+    ret = numerror / num
+    return ret
 end
 
 function contourGluBMI(pima::DataFrame, contour::Tuple; xlim::Any=nothing, ylim::Any=nothing, title::String="")::Figure
