@@ -23,18 +23,22 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     Sigma_s = cov(Matrix(data[:setosa]), corrected=true)
     Sigma_c = cov(Matrix(data[:versicolor]), corrected=true)
     Sigma_v = cov(Matrix(data[:virginica]), corrected=true)
+
     myprint("Sigma_s =", Sigma_s, "Sigma_c =", Sigma_c, "Sigma_v =", Sigma_v)
 
     # 全クラス内変動
     Sigma_W = Sigma_s + Sigma_c + Sigma_v
+
     myprint("Sigma_W =", Sigma_W)
 
     # 全変動（全平均の全データの変動の和）
     Sigma_T = cov(Matrix(data[:iris][:, setdiff(names(data[:iris]), ["Species"])]), corrected=true)
+
     myprint("Sigma_T =", Sigma_T)
 
     # クラス間変動｜全変動 = 全クラス内変動 + クラス間変動
     Sigma_B = Sigma_T - Sigma_W
+
     myprint("Sigma_B =", Sigma_B)
 
     rslt[:Sigma_W], rslt[:Sigma_T], rslt[:Sigma_B] = Sigma_W, Sigma_T, Sigma_B
@@ -44,6 +48,7 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     M_versicolor = mean.(eachcol(data[:versicolor]))
     M_virginica = mean.(eachcol(data[:virginica]))
     M = [M_setosa'; M_versicolor'; M_virginica']
+
     myprint("Group means M=", M)
 
     rslt[:M] = M
@@ -51,32 +56,37 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     # 固有値と固有ベクトル
     Sigma_X = inv(Sigma_W) * Sigma_B
     eigenvalue, eigenvector = eigen(Sigma_X, sortby=x->-x)  # 大きい順
+
     myprint("eigenvalue", eigenvalue, "eigenvector", eigenvector)
 
     rslt[:Sigma_X], rslt[:eigenvalue], rslt[:eigenvector] = Sigma_X, eigenvalue, eigenvector
 
-    # y切片
+    # y切片｜腹落ちしてない
     b = mean.(eachcol(M * eigenvector[:, 1:2]))
+
     myprint("b", b)
+
     rslt[:b] = b
 
+    # 線形判別関数パラメタ整理
+    # 判別空間の次元LはL<=min(K-1, M)(K=3(アヤメの種類), M=4(アヤメの測定データの種類))より、2次元
     LD1param = [eigenvector[1, 1], eigenvector[2, 1], eigenvector[3, 1] ,eigenvector[4, 1], b[1]]
     LD2param = [eigenvector[1, 2], eigenvector[2, 2], eigenvector[3, 2] ,eigenvector[4, 2], b[2]]
+
     myprint("LD1 paramters", LD1param, "LD2 paramters", LD2param)
 
     LDiris = fLD(data[:iris], LD1param, LD2param)
 
     rslt[:LDiris] = LDiris
 
+    # 判別空間を描画
     plot_LD1_LD2(LDiris, "LD1", "LD2", title="LD iris")
     #plot_LD1_LD2(LDiris, "LD1", "LD2", xlim=[-10, 10], ylim=[-8, 8], title="LD iris")
-
 
     println("Done")
 end
 
 function plot_LD1_LD2(df::DataFrame, xlabel::String, ylabel::String; xlim::Any=nothing, ylim::Any=nothing, title::String="")::Figure
-
     setosa = df[df.Species .== "setosa", setdiff(names(df), ["Species"])]
     versicolor = df[df.Species .== "versicolor", setdiff(names(df), ["Species"])]
     virginica = df[df.Species .== "virginica", setdiff(names(df), ["Species"])]
