@@ -23,6 +23,7 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     # 分類するデータを整理
     X1, X2 = :PetalLength, :PetalWidth
     pos, neg = :setosa, :versicolor
+
     dftgt = maketargetdataframe(data[:iris], pos, neg, X1, X2)
     dfpos = dftgt[dftgt.class .== 1, :]
     dfneg = dftgt[dftgt.class .== 0, :]
@@ -36,7 +37,34 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
 
     myprint(sigmoid(Vector(dftgt[1, 1:2]), weight))
 
+    # 交差エントロピー型誤差関数
+    L = crossentropyerror(dftgt, weight)
+
+
     println("Done")
+end
+
+function gradient(df::DataFrame)
+    # 3 x 1 のベクトルを返す
+    
+end
+
+function crossentropyerror(df::DataFrame, w::Vector)
+    num, _ = size(df)
+
+    tgt = Matrix(df)
+
+    L = 0
+
+    for i in 1:num
+        pii = sigmoid(tgt[i, 1:2], w)
+        ti = tgt[i, 3]
+        L += - ( ti * log(pii) + (1 - ti) * log(1 - pii) )
+        #myprint(pii)
+        #myprint(L)
+    end
+
+    return L
 end
 
 function sigmoid(x::Vector, w::Vector)
