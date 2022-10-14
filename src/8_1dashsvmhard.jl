@@ -62,7 +62,6 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     m = initSVMhard(length(data[:X0][:, 1]))
     myprint(m)
 
-
     println("Done")
 end
 
