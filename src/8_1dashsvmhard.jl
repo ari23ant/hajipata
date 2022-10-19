@@ -133,6 +133,31 @@ function fit!(m::SVMhard, X, y)
     m.b = sum(y[idx] - X[idx, :] * m.w) / sum(idx)
 end
 
+function estimate(m::SVMhard, X)
+    val = m.w' * X + m.b
+
+    if val < 0
+        ret = -1
+    elseif val > 0
+        ret = 1
+    else
+        ret = 0
+    end
+
+    return ret
+end
+
+function estimate(m::SVMhard, X::Matrix)
+    n, _ = size(X)
+    rets = Vector{Int}(undef, n)
+
+    for i in 1:n
+        rets[i] = estimate(m, X[i, :])
+    end
+
+    return rets
+end
+
 function plottraindata(X0, X1)
     fig, ax = subplots()
     ax.set_aspect("equal")
