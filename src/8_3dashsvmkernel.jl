@@ -80,21 +80,13 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     # モデル初期化
     num_row, num_col = size(X)
     m = initSVMkernel(num_row, num_col)
-    rslt[:m] = m
-
-    #k = initRBFkernel(X, 1.0)
-    #println(value(k, 3, 4))
-    #rslt[:k] = k
 
     # 最適化
     fit!(m, X, y, rslt)
-
     rslt[:m] = m
 
-    """
     # プロット
     plotmodel(data[:X0], data[:X1], m)
-    """
 
     # 訓練データの正答数
     num_ans = sum( y .== estimate(m, X) )
@@ -105,11 +97,9 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     # モデル初期化
     num_row, num_col = size(X)
     m = initSVMsoft(num_row, num_col)
-    rslt[:m] = m
 
     # 最適化
     fit!(m, X, y)
-
     rslt[:m] = m
 
     # プロット
@@ -281,6 +271,35 @@ function fit!(m::SVMkernel, X, y, rslt; m_C=1.0, k_sigma=1.0, max_iter=10000)
 
     m.y = y
     m.kernel = kernel
+end
+
+function plotmodel(X0, X1, m::SVMkernel)
+    fig, ax = subplots()
+    ax.set_aspect("equal")
+
+    # 訓練データ
+    ax.scatter(X0[:, 1], X0[:, 2], color="k", marker="+")
+    ax.scatter(X1[:, 1], X1[:, 2], color="k", marker="*")
+
+    # 境界線
+    X = [X0; X1]
+    gridnum = 200
+    gridx = range(minimum(X[:, 1]), maximum(X[:, 1]), gridnum)
+    gridy = range(minimum(X[:, 2]), maximum(X[:, 2]), gridnum)
+    z = mesh(gridx, gridy, m)
+
+    ax.contour(gridx, gridy, reshape(z, gridnum, gridnum), levels=[0], colors="k")
+end
+
+function mesh(gridx::StepRangeLen, gridy::StepRangeLen, m::SVMkernel)
+    numx, numy = length(gridx), length(gridy)
+    x = vec(gridx' .* ones(numy))
+    y = vec(ones(numx)' .* gridy)
+
+    X = [x y]
+
+    Z = estimate(m, X)
+    return Z
 end
 
 # --------------- SVM soft margin ---------------
