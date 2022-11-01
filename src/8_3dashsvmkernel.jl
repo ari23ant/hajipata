@@ -94,11 +94,11 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     """
     # プロット
     plotmodel(data[:X0], data[:X1], m)
+    """
 
     # 訓練データの正答数
     num_ans = sum( y .== estimate(m, X) )
     myprint("The number of correct answers is " * string(num_ans) * ".")
-    """
 
     """
     # ------- SVM soft margin -------
@@ -174,35 +174,11 @@ function initSVMkernel(num_a, num_w)
     return m
 end
 
-#function estimate(m::SVMkernel, X)
-#    
-#    # Python code
-#    #s = self.a_ != 0.
-#    #return np.sign(self.w0_ + np.dot(self.a_[s]*self.y_[s], self.kernel_.eval(X, s)))
-#    
-#    val = m.w' * X + m.b
-#
-#    if val < 0
-#        ret = -1
-#    elseif val > 0
-#        ret = 1
-#    else
-#        ret = 0
-#    end
-#
-#    return ret
-#end
-#
-#function estimate(m::SVMkernel, X::Matrix)
-#    n, _ = size(X)
-#    rets = Vector{Int}(undef, n)
-#
-#    for i in 1:n
-#        rets[i] = estimate(m, X[i, :])
-#    end
-#
-#    return rets
-#end
+function estimate(m::SVMkernel, X)
+    s = (m.a .!= 0.0)
+    ret = sign.(m.b .+ eval(m.kernel, X, s)' * (m.a[s].*m.y[s]))
+    return ret
+end
 
 function fit!(m::SVMkernel, X, y, rslt; m_C=1.0, k_sigma=1.0, max_iter=10000)
     # ----- 初期値設定
