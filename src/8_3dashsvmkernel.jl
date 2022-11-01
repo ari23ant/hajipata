@@ -187,17 +187,14 @@ function fit!(m::SVMkernel, X, y, rslt; m_C=1.0, k_sigma=1.0, max_iter=10000)
     for ii in 1:max_iter
         s = (a .!= 0.0)
 
-        #ydf = y .* (1 .- yx * ayx)  # yxはすでに転置されてる
         # 計算都合で、(a[s].*y[s])' * eval(kernel, X, s)の順序を逆にした
         ydf = y .* (1 .- (y .* (eval(kernel, X, s)' * (a[s].*y[s]))))  # <- SVMkernelから変更
 
         # --- インデックスiとjを選択
-        #Iminus = (y .< 0) .| (a .> 0)
         Iminus = ( (a .> 0) .& (y .> 0) ) .| ( (a .< m.C) .& (y .< 0) )  # <- SVMsoftから変更
         i_idx = argmin(ydf[Iminus])
         i = indices[Iminus][i_idx]
 
-        #Iplus = (y .> 0) .| (a .> 0)
         Iplus = ( (a .> 0) .& (y .< 0) ) .| ( (a .< m.C) .& (y .> 0) )  # <- SVMsoftから変更
         j_idx = argmax(ydf[Iplus])
         j = indices[Iplus][j_idx]
