@@ -25,10 +25,26 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     xx = xx[:, [feat1, feat2]]
     cc = cc[:, [feat1, feat2]]
     rslt[:xx], rslt[:cc] = xx, cc
+    #plot_sampledata(xx, cc)
 
-    plot_sampledata(xx, cc)
+
+    # 各軸の最小値と最大値とって
+    # 刻み幅でfor文回す
+    # その中でまずはginiを計算してみる
+
 
     println(" -------     Done     ------- ")
+end
+
+function gini(nums)
+    total = sum(nums)
+
+    gini = 0
+    for n in nums
+        gini += (n / total) * (1 - n / total)
+    end
+
+    return gini
 end
 
 function plot_sampledata(xx, cc)
