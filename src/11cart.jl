@@ -27,10 +27,35 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     rslt[:xx], rslt[:cc] = xx, cc
     #plot_sampledata(xx, cc)
 
+    # 各軸の最小値と最大値
+    plmin = minimum([xx[:, :PetalLength]; cc[:, :PetalLength]])
+    plmax = maximum([xx[:, :PetalLength]; cc[:, :PetalLength]])
+    pwmin = minimum([xx[:, :PetalWidth]; cc[:, :PetalWidth]])
+    pwmax = maximum([xx[:, :PetalWidth]; cc[:, :PetalWidth]])
+    println(plmin, plmax)
+    println(pwmin, pwmax)
 
-    # 各軸の最小値と最大値とって
-    # 刻み幅でfor文回す
-    # その中でまずはginiを計算してみる
+
+    # まずいまのノードで各クラスの数を数えてgini係数を計算
+    # つぎに、分割境界で、2分割され、LとRでそれぞれgini係数を計算
+    # 減少率を計算
+    # 辞書型で管理？
+
+    step = 0.1
+    for pl in plmin+step:step:plmax-step
+        numxx = sum(xx[:, :PetalLength] .> pl)
+        numcc = sum(cc[:, :PetalLength] .> pl)
+        score = gini([numxx, numcc])
+        println(score)
+    end
+    println("aaaaaaaaaa")
+    for pw in pwmin+step:step:pwmax-step
+        numxx = sum(xx[:, :PetalWidth] .> pw)
+        numcc = sum(cc[:, :PetalWidth] .> pw)
+        score = gini([numxx, numcc])
+        println(score)
+    end
+
 
 
     println(" -------     Done     ------- ")
