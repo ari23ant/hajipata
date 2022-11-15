@@ -41,6 +41,34 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
     # 減少率を計算
     # 辞書型で管理？
 
+    node = Dict{Symbol, Any}()
+
+    n = 1
+
+    node[:node] = n
+    node[:xx] = xx
+    node[:cc] = cc
+    numxx = length(node[:xx][:, 1])
+    numcc = length(node[:cc][:, 1])
+    node[:score] = gini([numxx, numcc])
+
+    total = numxx + numcc
+
+    for pl in plmin+step:step:plmax-step
+
+        left = sum(node[:xx] .> pl) + sum(node[:cc] .> pl)
+        right = total - left
+
+        delata = node[:score] - (left/total)
+
+    end
+
+    for pw in pwmin+step:step:pwmax-step
+
+    end
+
+
+    """
     step = 0.1
     for pl in plmin+step:step:plmax-step
         numxx = sum(xx[:, :PetalLength] .> pl)
@@ -55,7 +83,7 @@ function process(data::Dict{Symbol, Any}, rslt::Dict{Symbol, Any})
         score = gini([numxx, numcc])
         println(score)
     end
-
+    """
 
 
     println(" -------     Done     ------- ")
